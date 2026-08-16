@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arcspire video diagnostic</title>
+<style>
+  body{margin:0;background:#0D0D27;color:#FAF8F4;font:14px/1.5 -apple-system,system-ui,sans-serif;padding:16px}
+  h1{font-size:16px;margin:0 0 12px}
+  .box{background:#1a1a3a;border-radius:8px;padding:12px;margin:10px 0}
+  video{width:100%;background:#000;border-radius:6px;display:block}
+  pre{white-space:pre-wrap;word-break:break-all;font-size:12px;margin:0;color:#c8f0c8}
+  .bad{color:#ff8a8a}.ok{color:#8affb0}
+  button{font:15px system-ui;padding:12px 16px;border-radius:8px;border:0;background:#C48F49;color:#0D0D27;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>Arcspire · hero video diagnostic</h1>
+<div class="box"><b>Device</b><pre id="ua"></pre></div>
+
+<div class="box">
+  <b>Test 1 — facade-1080.mp4 (attribute autoplay, exactly like the site)</b>
+  <video id="v1" src="/media/facade-1080.mp4" poster="/media/facade-poster.jpg" autoplay muted loop playsinline webkit-playsinline preload="auto"></video>
+  <pre id="r1">waiting…</pre>
+</div>
+
+<div class="box">
+  <b>Test 2 — marble-1080.mp4</b>
+  <video id="v2" src="/media/marble-1080.mp4" muted loop playsinline webkit-playsinline preload="auto"></video>
+  <pre id="r2">waiting…</pre>
+</div>
+
+<div class="box">
+  <b>Test 3 — tap to play (user gesture)</b><br>
+  <button id="btn">▶ Tap to play both</button>
+  <pre id="r3">not tapped yet</pre>
+</div>
+
+<div class="box"><b>Decoder support</b><pre id="dec"></pre></div>
+
+<script>
+const $=id=>document.getElementById(id);
+$('ua').textContent = navigator.userAgent + '\nsaveData=' + (navigator.connection && navigator.connection.saveData);
+const v1=$('v1'), v2=$('v2');
+const ERR={1:'ABORTED',2:'NETWORK',3:'DECODE (codec/profile unsupported)',4:'SRC_NOT_SUPPORTED'};
+function report(v, el, label){
+  const parts=[];
+  parts.push('readyState='+v.readyState+' networkState='+v.networkState);
+  parts.push('paused='+v.paused+' muted='+v.muted+' t='+v.currentTime.toFixed(1));
+  parts.push('size='+v.videoWidth+'x'+v.videoHeight);
+  if(v.error) parts.push('ERROR '+v.error.code+' '+(ERR[v.error.code]||'')+' '+(v.error.message||''));
+  el.textContent=(label?label+'\n':'')+parts.join('\n');
+  el.className = v.error ? 'bad' : (!v.paused && v.currentTime>0 ? 'ok' : '');
+}
+['loadedmetadata','loadeddata','canplay','playing','pause','stalled','suspend','error','waiting'].forEach(ev=>{
+  v1.addEventListener(ev,()=>report(v1,$('r1'),'last event: '+ev));
+  v2.addEventListener(ev,()=>report(v2,$('r2'),'last event: '+ev));
+});
+// programmatic play attempt on v1 like the site
+v1.play().then(()=>report(v1,$('r1'),'play() RESOLVED')).catch(e=>report(v1,$('r1'),'play() REJECTED: '+e.name+' — '+e.message));
+setInterval(()=>{report(v1,$('r1'),$('r1').textContent.split('\n')[0]);report(v2,$('r2'),$('r2').textContent.split('\n')[0]);},1500);
+$('btn').onclick=()=>{
+  Promise.allSettled([v1.play(),v2.play()]).then(rs=>{
+    $('r3').textContent=rs.map((r,i)=>'video'+(i+1)+': '+(r.status==='fulfilled'?'PLAY OK':'REJECTED '+r.reason.name+' '+r.reason.message)).join('\n');
+  });
+};
+const t=document.createElement('video');
+$('dec').textContent=[
+ 'H.264 baseline: '+t.canPlayType('video/mp4; codecs="avc1.42E01E"'),
+ 'H.264 high 4.2 (facade): '+t.canPlayType('video/mp4; codecs="avc1.64002A"'),
+ 'H.264 high 5.0 (marble): '+t.canPlayType('video/mp4; codecs="avc1.640032"'),
+ 'plain video/mp4: '+t.canPlayType('video/mp4'),
+].join('\n');
+</script>
+</body>
+</html>
